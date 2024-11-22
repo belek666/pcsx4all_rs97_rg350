@@ -105,7 +105,13 @@
 	 *  allows faster block dispatch loops, and reduces cache/TLB pressure.
 	 */
 	#define USE_VIRTUAL_RECRAM_MAPPING
-
+#elif defined(PS2)
+	#ifdef USE_DIRECT_MEM_ACCESS
+		#define USE_VIRTUAL_PSXMEM_MAPPING
+	#else
+		#warning "USE_DIRECT_MEM_ACCESS is undefined! Dynarec will emit slower C memory accesses."
+	#endif
+	#define USE_VIRTUAL_RECRAM_MAPPING
 #else
 	#warning "Neither SHMEM_MIRRORING nor TMPFS_MIRRORING are defined! Dynarec will use slower block dispatch loop and emit slower memory accesses. Check your Makefile!"
 #endif // defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
@@ -197,7 +203,7 @@ static inline uint8_t IsFuzzyScratchpadAddr(const uint32_t reg)  { return iRegs[
  *  Dynamic allocation would get an anonymous mmap'ing, locating the recompiled
  *  code *far* too high in virtual address space.
  */
-#define RECMEM_SIZE         (12 * 1024 * 1024)
+#define RECMEM_SIZE         (4 * 1024 * 1024)
 #define RECMEM_SIZE_MAX     (RECMEM_SIZE-(512*1024))
 static uint8_t recMemBase[RECMEM_SIZE] __attribute__((aligned(4)));
 
@@ -632,7 +638,7 @@ __attribute__((noinline)) static void recFunc(void *fn)
 	/*  $v0 is new value for psxRegs.pc                                        */
 	/*  $v1 is number of cycles to increment psxRegs.cycle by                  */
 	__asm__ __volatile__ (
-		"addiu  $sp, $sp, -24                   \n"
+		"addiu  $sp, $sp, -32                   \n"
 		"la     $fp, %[psxRegs]                 \n" // $fp = &psxRegs
 		"lw     $v0, %[psxRegs_pc_off]($fp)     \n" // Blocks expect $v0 to contain PC val on entry
 		"la     $ra, block_return_addr%=        \n" // Load $ra with block_return_addr
@@ -644,7 +650,7 @@ __attribute__((noinline)) static void recFunc(void *fn)
 		"lw     $t1, %[psxRegs_cycle_off]($fp)  \n" //
 		"addu   $t1, $t1, $v1                   \n" //
 		"sw     $t1, %[psxRegs_cycle_off]($fp)  \n" // psxRegs.cycle += $v1
-		"addiu  $sp, $sp, 24                    \n"
+		"addiu  $sp, $sp, 32                    \n"
 		: // Output
 		: // Input
 		  [fn]                   "r" (fn),
@@ -693,7 +699,7 @@ __asm__ __volatile__ (
 
 // Set up our own stack frame. Should have 8-byte alignment, and have 16 bytes
 // empty at 0($sp) for use by functions called from within recompiled code.
-".equ  frame_size,                  24        \n"
+".equ  frame_size,                  32        \n"
 ".equ  f_off_temp_var1,             20        \n"
 ".equ  f_off_block_ret_addr,        16        \n" // NOTE: blocks assume this is at 16($sp)!
 "addiu $sp, $sp, -frame_size                  \n"
@@ -745,7 +751,7 @@ __asm__ __volatile__ (
 "sll   $t2, $t2, 2                            \n" // sizeof() psxRecLUT[] elements is 4
 "addu  $t1, $t1, $t2                          \n"
 "lw    $t1, %%lo(%[psxRecLUT])($t1)           \n" // $t1 = psxRecLUT[psxRegs.pc >> 16]
-"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+"lw    $a4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $a4 = psxRegs.io_cycle_counter
 "addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
 "andi  $t0, $v0, 0xffff                       \n"
 "addu  $t2, $t0, $t1                          \n"
@@ -756,8 +762,8 @@ __asm__ __volatile__ (
 
 
 // Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
-"sltu  $t4, $t3, $t4                          \n"
-"beqz  $t4, call_psxBranchTest%=              \n"
+"sltu  $a4, $t3, $a4                          \n"
+"beqz  $a4, call_psxBranchTest%=              \n"
 "sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
                                                   //  whether or not we are branching here
 
@@ -858,7 +864,7 @@ __asm__ __volatile__ (
 
 // Set up our own stack frame. Should have 8-byte alignment, and have 16 bytes
 // empty at 0($sp) for use by functions called from within recompiled code.
-".equ  frame_size,                  24        \n"
+".equ  frame_size,                  32        \n"
 ".equ  f_off_temp_var1,             20        \n"
 ".equ  f_off_block_ret_addr,        16        \n" // NOTE: blocks assume this is at 16($sp)!
 "addiu $sp, $sp, -frame_size                  \n"
@@ -905,7 +911,7 @@ __asm__ __volatile__ (
 // Infinite loop, blocks return here
 "loop%=:                                      \n"
 "lw    $t3, %[psxRegs_cycle_off]($fp)         \n" // $t3 = psxRegs.cycle
-"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+"lw    $a4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $a4 = psxRegs.io_cycle_counter
 
 // The block ptrs are mapped virtually to address space allowing lower
 //  24 bits of PS1 PC address to lookup start of any RAM or ROM code block.
@@ -925,8 +931,8 @@ __asm__ __volatile__ (
 "addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
 
 // Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
-"sltu  $t4, $t3, $t4                          \n"
-"beqz  $t4, call_psxBranchTest%=              \n"
+"sltu  $a4, $t3, $a4                          \n"
+"beqz  $a4, call_psxBranchTest%=              \n"
 "sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
                                                   //  whether or not we are branching here
 
@@ -1080,7 +1086,7 @@ __asm__ __volatile__ (
 "sll   $t2, $t2, 2                            \n" // sizeof() psxRecLUT[] elements is 4
 "addu  $t1, $t1, $t2                          \n"
 "lw    $t1, %%lo(%[psxRecLUT])($t1)           \n" // $t1 = psxRecLUT[psxRegs.pc >> 16]
-"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+"lw    $a4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $a4 = psxRegs.io_cycle_counter
 "addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
 "andi  $t0, $v0, 0xffff                       \n"
 "addu  $t2, $t0, $t1                          \n"
@@ -1091,8 +1097,8 @@ __asm__ __volatile__ (
 
 
 // Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
-"sltu  $t4, $t3, $t4                          \n"
-"beqz  $t4, call_psxBranchTest%=              \n"
+"sltu  $a4, $t3, $a4                          \n"
+"beqz  $a4, call_psxBranchTest%=              \n"
 "sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
                                                   //  whether or not we are branching here
 
@@ -1140,13 +1146,13 @@ __asm__ __volatile__ (
 //  NOTE: Blocks returning this way don't bother to set $v0 to any PC value.
 "fastpath_loop%=:                             \n"
 "lw    $t3, %[psxRegs_cycle_off]($fp)         \n" // $t3 = psxRegs.cycle
-"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+"lw    $a4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $a4 = psxRegs.io_cycle_counter
 "lw    $t0, f_off_block_start_addr($sp)       \n" // Load block code addr saved in main loop
 "addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
 
 // Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
-"sltu  $t4, $t3, $t4                          \n"
-"beqz  $t4, call_psxBranchTest_fastpath%=     \n"
+"sltu  $a4, $t3, $a4                          \n"
+"beqz  $a4, call_psxBranchTest_fastpath%=     \n"
 "sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
                                                   //  whether or not we are branching here
 
@@ -1293,7 +1299,7 @@ __asm__ __volatile__ (
 // Infinite loop, blocks return here
 "loop%=:                                      \n"
 "lw    $t3, %[psxRegs_cycle_off]($fp)         \n" // $t3 = psxRegs.cycle
-"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+"lw    $a4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $a4 = psxRegs.io_cycle_counter
 
 // The block ptrs are mapped virtually to address space allowing lower
 //  24 bits of PS1 PC address to lookup start of any RAM or ROM code block.
@@ -1313,8 +1319,8 @@ __asm__ __volatile__ (
 "addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
 
 // Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
-"sltu  $t4, $t3, $t4                          \n"
-"beqz  $t4, call_psxBranchTest%=              \n"
+"sltu  $a4, $t3, $a4                          \n"
+"beqz  $a4, call_psxBranchTest%=              \n"
 "sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
                                                   //  whether or not we are branching here
 
@@ -1362,13 +1368,13 @@ __asm__ __volatile__ (
 //  NOTE: Blocks returning this way don't bother to set $v0 to any PC value.
 "fastpath_loop%=:                             \n"
 "lw    $t3, %[psxRegs_cycle_off]($fp)         \n" // $t3 = psxRegs.cycle
-"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+"lw    $a4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $a4 = psxRegs.io_cycle_counter
 "lw    $t0, f_off_block_start_addr($sp)       \n" // Load block code addr saved in main loop
 "addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
 
 // Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
-"sltu  $t4, $t3, $t4                          \n"
-"beqz  $t4, call_psxBranchTest_fastpath%=     \n"
+"sltu  $a4, $t3, $a4                          \n"
+"beqz  $a4, call_psxBranchTest_fastpath%=     \n"
 "sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
                                                   //  whether or not we are branching here
 
@@ -1524,7 +1530,7 @@ __asm__ __volatile__ (
 "sll   $t2, $t2, 2                            \n" // sizeof() psxRecLUT[] elements is 4
 "addu  $t1, $t1, $t2                          \n"
 "lw    $t1, %%lo(%[psxRecLUT])($t1)           \n" // $t1 = psxRecLUT[psxRegs.pc >> 16]
-"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+"lw    $a4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $a4 = psxRegs.io_cycle_counter
 "addu  $t3, $t3, $v1                          \n" // $t3 = new psxRegs.cycle val
 "andi  $t0, $v0, 0xffff                       \n"
 "addu  $t2, $t0, $t1                          \n"
@@ -1532,8 +1538,8 @@ __asm__ __volatile__ (
                                                   //  block, or is 0 if block needs compiling
 
 // Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
-"sltu  $t4, $t3, $t4                          \n"
-"beqz  $t4, call_psxBranchTest%=              \n"
+"sltu  $a4, $t3, $a4                          \n"
+"beqz  $a4, call_psxBranchTest%=              \n"
 "sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
                                                   //  whether or not we are branching here
 

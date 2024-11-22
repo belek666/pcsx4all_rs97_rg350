@@ -33,6 +33,10 @@
 #include "mem_mapping.h"
 #include "psxmem.h"
 
+#ifdef PS2
+#include <kernel.h>
+#endif
+
 #if defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
 #include <fcntl.h>
 #include <unistd.h>
@@ -356,6 +360,111 @@ void rec_munmap_rec_mem()
 
 	// Unmap recROM code ptr array
 	munmap((void*)REC_ROM_VADDR, REC_ROM_SIZE);
+}
+
+#elif defined(PS2TLB)
+
+static int indexTLB = 37; //we overwrite some default mappings - not sure if safe
+
+int rec_mmap_psx_mem()
+{
+	// Map PSX RAM to start at fixed virtual address specified in mem_mapping.h
+	int ret = _SetTLBEntry(indexTLB++, 0x001FE000, PSX_MEM_VADDR, 0x0000401F, 0x0000801F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+
+	// Create three mirrors of the 2MB RAM, all the way up to 0x7fffff
+	ret = _SetTLBEntry(indexTLB++, 0x001FE000, PSX_MEM_VADDR + 0x00200000, 0x0000401F, 0x0000801F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+	ret = _SetTLBEntry(indexTLB++, 0x001FE000, PSX_MEM_VADDR + 0x00400000, 0x0000401F, 0x0000801F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+	ret = _SetTLBEntry(indexTLB++, 0x001FE000, PSX_MEM_VADDR + 0x00600000, 0x0000401F, 0x0000801F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+	
+	psxM = (int8_t*)PSX_MEM_VADDR;
+
+	ret = _SetTLBEntry(indexTLB++, 0x0001E000, PSX_MEM_VADDR + 0x0F000000, 0x0000C01F, 0x0000C41F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+	ret = _SetTLBEntry(indexTLB++, 0x0001E000, PSX_MEM_VADDR + 0x0F800000, 0x0000C81F, 0x0000CC1F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+
+	psxP = (int8_t*)(PSX_MEM_VADDR + 0x0F000000);  // ROM expansion region (parallel port)
+	psxH = (int8_t*)(PSX_MEM_VADDR + 0x0F800000);  // HW I/O region
+
+	psxM_allocated = psxP_allocated = psxH_allocated = 1;
+	return 0;
+}
+
+void rec_munmap_psx_mem()
+{
+	InitTLB();
+	psxM = psxP = psxH = NULL;
+	psxM_allocated = psxP_allocated = psxH_allocated = 0;
+}
+
+// Dynarec will be forced to use psxRecLUT[] as further layer of indirection
+//  when looking up code block pointers.
+int rec_mmap_rec_mem()
+{
+	// Map recRAM to start at fixed virtual address specified in mem_mapping.h
+	int ret = _SetTLBEntry(indexTLB++, 0x001FE000, REC_RAM_VADDR, 0x0001001F, 0x0001401F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+
+	// Create three mirrors of the recRAM, to reflect PS1's RAM mirroring
+	ret = _SetTLBEntry(indexTLB++, 0x001FE000, REC_RAM_VADDR + 0x00200000, 0x0001001F, 0x0001401F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+	ret = _SetTLBEntry(indexTLB++, 0x001FE000, REC_RAM_VADDR + 0x00400000, 0x0001001F, 0x0001401F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+	ret = _SetTLBEntry(indexTLB++, 0x001FE000, REC_RAM_VADDR + 0x00600000, 0x0001001F, 0x0001401F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+
+	// Map recROM to start at offset past recRAM that matches PSX mapping,
+	//  i.e. if recRAM starts at 0x2000_0000, 512KB ROM region will be at
+	//  0x2000_0000 + 0x00c0_0000 (assuming 4-byte pointer size). Note that
+	//  only the lower 24 bits of the PS1 PC value is used as offset. This
+	//  allows future 64-bit platforms to use the same virtual mappings
+	//  while using a larger offset multiplier that 8-byte pointers require,
+	//  i.e. 0x2000_0000 + (0x00c0_0000 * 2).
+	ret = _SetTLBEntry(indexTLB++, 0x0007E000, REC_RAM_VADDR + 0x00c00000, 0x0000D01F, 0x0000E01F);
+	if (ret < 0) {
+		printf("Failed to set tlb entry %d\n", indexTLB - 1);
+		return -1;
+	}
+	return 0;
+}
+
+void rec_munmap_rec_mem()
+{
+	InitTLB();
 }
 
 #else

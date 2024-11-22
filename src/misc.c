@@ -73,7 +73,7 @@ struct iso_directory_record {
 void mmssdd( char *b, char *p )
 {
 	int m, s, d;
-#if defined(__arm__)
+#if defined(__arm__) || defined(PS2)
 	unsigned char *u = (void *)b;
 	int block = (u[3] << 24) | (u[2] << 16) | (u[1] << 8) | u[0];
 #elif defined(__BIGENDIAN__)
@@ -593,7 +593,7 @@ static void *zlib_open(const char *name, uint_fast8_t writing)
 		return NULL;
 	}
 
-#if defined(_WIN32) && !defined(__CYGWIN__)
+#if (defined(_WIN32) && !defined(__CYGWIN__)) || defined(PS2)
 	// Windows without Cygwin:
 	// Let zlib handle all file operations
 	if ((gzfile_ptr = (void*)gzopen(name, zlib_mode)) == NULL)
@@ -658,7 +658,7 @@ static int zlib_close(void *file)
 	int retval = 0;
 	if (gzclose((gzFile)file) != Z_OK) retval = -1;
 
-#if !(defined(_WIN32) && !defined(__CYGWIN__))
+#if !(defined(_WIN32) && !defined(__CYGWIN__)) && !defined(PS2)
 	if (fsync(SaveFuncs.fd)) retval = -1;
 	if (close(SaveFuncs.fd)) retval = -1;
 	SaveFuncs.fd = SaveFuncs.lib_fd = -1;

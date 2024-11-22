@@ -45,7 +45,11 @@
 #else
 	// For development: null pointer dereferences will segfault as normal.
 	// Address conversions will need more instructions.
+#ifdef PS2TLB
+	#define PSX_MEM_VADDR 0x40000000ULL
+#else
 	#define PSX_MEM_VADDR 0x10000000ULL
+#endif
 #endif
 
 int rec_mmap_psx_mem();
@@ -61,7 +65,11 @@ void rec_munmap_psx_mem();
 #define REC_RAM_SIZE (0x200000 / 4 * REC_RAM_PTR_SIZE)
 #define REC_ROM_SIZE ( 0x80000 / 4 * REC_RAM_PTR_SIZE)
 
-#define REC_RAM_VADDR 0x20000000ULL
+#ifdef PS2TLB
+	#define REC_RAM_VADDR 0x50000000ULL
+#else
+	#define REC_RAM_VADDR 0x20000000ULL
+#endif
 #define REC_ROM_VADDR (REC_RAM_VADDR + (0x00c00000ULL / 4 * REC_RAM_PTR_SIZE))
 
 int rec_mmap_rec_mem();

@@ -26,7 +26,7 @@
 #include <unistd.h>
 
 // We only support CPU stats on UNIX platforms
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(PS2)
 #include <sys/resource.h>
 #define PERFMON_CPU_STATS
 #endif

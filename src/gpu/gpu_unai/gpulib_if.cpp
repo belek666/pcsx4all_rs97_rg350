@@ -217,11 +217,11 @@ static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, uint32_t cmd_word)
 
 extern const unsigned char cmd_lengths[256];
 
-int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
+int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
 {
-  unsigned int cmd = 0, len, i;
-  unsigned int *list_start = list;
-  unsigned int *list_end = list + list_len;
+  uint32_t cmd = 0, len, i;
+  uint32_t *list_start = list;
+  uint32_t *list_end = list + list_len;
 
   //TODO: set ilace_mask when resolution changes instead of every time,
   // eliminate #ifdef below.

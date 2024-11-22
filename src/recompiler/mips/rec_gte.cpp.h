@@ -261,8 +261,18 @@ static void emitMTC2(uint32_t rt, uint32_t reg)
 		SLT(TEMP_2, rt, 0);
 		NOR(TEMP_1, 0, rt); // temp_1 = rt ^ -1
 		MOVZ(TEMP_1, rt, TEMP_2); // if (temp_2 == 0) temp_1 = rt
+#ifdef PS2
+		MOV(TEMP_2, TEMP_1);
+		SRL(TEMP_2, TEMP_2, 31);
+		BGTZ(TEMP_2, 12);
+		MOV(TEMP_2, 0);
+		CLZ(TEMP_2, TEMP_1);
+		ADDIU(TEMP_2, TEMP_2, 1);
+		SW(TEMP_2, PERM_REG_1, off(CP2D.r[31]));
+#else
 		CLZ(TEMP_1, TEMP_1);
 		SW(TEMP_1, PERM_REG_1, off(CP2D.r[31]));
+#endif
 		break;
 
 	//senquack - Applied fix, see comment in gte.cpp gtecalcMTC2()

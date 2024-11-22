@@ -15,7 +15,11 @@
 #include "cdrom_hacks.h"
 #include "cheat.h"
 
+#ifdef PS2
+#include <libpad.h>
+#else
 #include <SDL.h>
+#endif
 
 /* MAXPATHLEN inclusion */
 #ifdef __MINGW32__
@@ -41,11 +45,19 @@
 #define timer_delay(a)	wait_ticks(a*1000)
 #endif
 
+#ifdef PS2
+enum  {
+	KEY_UP=PAD_UP,	KEY_LEFT= PAD_LEFT,		KEY_DOWN=PAD_DOWN,	KEY_RIGHT= PAD_RIGHT,
+	KEY_START= PAD_START,	KEY_SELECT= PAD_SELECT,	KEY_L= PAD_L1,	KEY_R= PAD_R1,
+	KEY_A= PAD_CROSS,	KEY_B= PAD_CIRCLE,		KEY_X= PAD_SQUARE,	KEY_Y= PAD_TRIANGLE,
+};
+#else
 enum  {
 	KEY_UP=0x1,	KEY_LEFT=0x4,		KEY_DOWN=0x10,	KEY_RIGHT=0x40,
 	KEY_START=1<<8,	KEY_SELECT=1<<9,	KEY_L=1<<10,	KEY_R=1<<11,
 	KEY_A=1<<12,	KEY_B=1<<13,		KEY_X=1<<14,	KEY_Y=1<<15,
 };
+#endif
 
 #define _KEY_BACK   (KEY_SELECT|KEY_B)
 extern char sstatesdir[MAXPATHLEN];
@@ -59,6 +71,14 @@ static inline void key_reset() { ret = 0; }
 
 static unsigned int key_read(void)
 {
+#ifdef PS2
+	Wait_Pad_Ready();
+	struct padButtonStatus pad;
+	padRead(0, 0, &pad);
+	pad.btns ^= 0xFFFF;
+
+	ret = pad.btns;
+#else
 	SDL_Event event;
 
 	while (SDL_PollEvent(&event))  {
@@ -110,8 +130,7 @@ static unsigned int key_read(void)
 		default: break;
 		}
 	}
-
-
+#endif
 	return ret;
 }
 

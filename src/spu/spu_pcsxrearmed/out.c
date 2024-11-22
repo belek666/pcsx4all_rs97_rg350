@@ -39,6 +39,9 @@ void SetupSound(void)
 #endif
 #ifdef HAVE_LIBRETRO
 			REGISTER_DRIVER(libretro);
+#endif
+#ifdef HAVE_PS2
+			REGISTER_DRIVER(ps2);
 #else
 			REGISTER_DRIVER(none);
 #endif

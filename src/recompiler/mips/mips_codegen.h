@@ -110,7 +110,9 @@ typedef enum {
  */
 
 /* XXX: encoding of 3-op MUL changed in MIPS32r6, but hasn't been updated here. */
+#ifndef PS2
 #define HAVE_MIPS32_3OP_MUL
+#endif
 
 // MIPS32r2 introduced useful instructions:
 #if (defined(__mips_isa_rev) && (__mips_isa_rev >= 2)) || \
@@ -187,6 +189,19 @@ extern uint32_t *recMem;
 #define write32(i) \
 	do { *recMem++ = (uint32_t)(i); } while (0)
 
+#ifdef PS2
+#define PUSH(reg) \
+do { \
+	write32(0x27bdfff0); /* addiu sp, sp, -16 */ \
+	write32(0xafa00000 | ((reg) << 16)); /* sw reg, sp(0) */ \
+} while (0)
+
+#define POP(reg) \
+do { \
+	write32(0x8fa00000 | ((reg) << 16)); /* lw reg, sp(0) */\
+	write32(0x27bd0010); /* addiu sp, sp, 16 */ \
+} while (0)
+#else
 #define PUSH(reg) \
 do { \
 	write32(0x27bdfffc); /* addiu sp, sp, -4 */ \
@@ -198,6 +213,7 @@ do { \
 	write32(0x8fa00000 | ((reg) << 16)); /* lw reg, sp(0) */\
 	write32(0x27bd0004); /* addiu sp, sp, 4 */ \
 } while (0)
+#endif
 
 #define LW(rt, rs, imm16) \
 	write32(0x8c000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
@@ -403,8 +419,14 @@ do {                                                                           \
 #endif //HAVE_MIPS32R2_SEB_SEH
 
 
+#ifdef PS2
+#warning not real clz
+#define CLZ(rd, rs) \
+	write32(0x70000004 | ((rs) << 21) | ((rd) << 11))
+#else
 #define CLZ(rd, rs) \
 	write32(0x70000020 | ((rs) << 21) | ((rd) << 16) | ((rd) << 11))
+#endif
 
 static inline uint32_t ADJUST_CLOCK(uint32_t cycles)
 {
