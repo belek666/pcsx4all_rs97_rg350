@@ -444,7 +444,11 @@ void vout_update(void)
 	int h0 = gpu.screen.vres;
 	#else
 	int w1 = gpu.screen.w;
+#	ifdef GPU_UNAI
 	int h0 = !gpu_unai_config_ext.ntsc_fix || Config.VideoScaling == 1 ? gpu.screen.vres : SCREEN_HEIGHT;
+	#else
+	int h0 = Config.VideoScaling == 1 ? gpu.screen.vres : SCREEN_HEIGHT;
+	#endif //GPU_UNAI
 	#endif
 	int h1 = gpu.screen.h;     // height of image displayed on screen
 

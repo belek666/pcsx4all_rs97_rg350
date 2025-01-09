@@ -2097,6 +2097,8 @@ static void ShowMenu(MENU *menu)
 	// general copyrights info
 #if defined(RG350)
 	port_printf(8 * 8, 10, "pcsx4all 2.4 for RG350");
+#elif defined(PS2)
+	port_printf(8 * 8, 10, "pcsx4all 2.4 for PS2");
 #else
 	port_printf(8 * 8, 10, "pcsx4all 2.4 for GCW-Zero");
 #endif

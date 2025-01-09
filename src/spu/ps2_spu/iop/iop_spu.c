@@ -30,14 +30,14 @@
 #define SD_S_ADMAS(core) 				U16_REGISTER(0x1B0+(core*1024))
 
 
-#define DPRINTF(x...) printf(x)
-//#define DPRINTF(x...)
+//#define DPRINTF(x...) printf(x)
+#define DPRINTF(x...)
 
 static int transfer_sema = 0;
 static int queue_sema = 0;
 static u8 sound_inited = 0;
 static volatile int active_buffer = 0;
-static u8 core1_buf[2][2048] __attribute__((aligned(16)));
+static u8 sound_core_buf[2][2048] __attribute__((aligned(16)));
 static short rendered_left[512];
 static short rendered_right[512];
 
@@ -48,9 +48,9 @@ static int ringbuf_size = sizeof(sound_ringbuf);
 static volatile int read_pos = 0;
 static volatile int write_pos = 0;
 static int playing = 0;
-static int core1_freq = 0;
-static int core1_bits = 0;
-static int core1_channels = 0;
+static int sound_freq = 0;
+static int sound_bits = 0;
+static int sound_channels = 0;
 static int format_changed = 0;
 
 static upsampler_t upsampler = NULL;
@@ -75,7 +75,7 @@ static int TransInterrupt_core0(void *data) {
 
 static int TransInterrupt_core1(void *data) {
 	active_buffer = 1 - active_buffer;
-	U32_REGISTER_WRITE(SD_DMA_ADDR(SOUND_CORE), (u32)core1_buf[active_buffer]);
+	U32_REGISTER_WRITE(SD_DMA_ADDR(SOUND_CORE), (u32)sound_core_buf[active_buffer]);
 	U16_REGISTER_WRITE(SD_DMA_SIZE(SOUND_CORE), 2048 / 64);
 	U32_REGISTER_WRITE(SD_DMA_CHCR(SOUND_CORE), SD_DMA_START | SD_DMA_CS | SD_DMA_DIR_IOP2SPU);
 	iSignalSema(transfer_sema);
@@ -138,7 +138,7 @@ static void start_autodma(void) {
 
 	active_buffer = 0;
 
-	U32_REGISTER_WRITE(SD_DMA_ADDR(SOUND_CORE), (u32)core1_buf[active_buffer]);
+	U32_REGISTER_WRITE(SD_DMA_ADDR(SOUND_CORE), (u32)sound_core_buf[active_buffer]);
 	U16_REGISTER_WRITE(SD_DMA_MODE(SOUND_CORE), 0x10);
 	U16_REGISTER_WRITE(SD_DMA_SIZE(SOUND_CORE), 2048 / 64);
 	U32_REGISTER_WRITE(SD_DMA_CHCR(SOUND_CORE), SD_DMA_CS | SD_DMA_START | SD_DMA_DIR_IOP2SPU);
@@ -204,7 +204,7 @@ static void sound_thread(void *arg) {
 
 	while (1) {
 		if (format_changed) {
-			upsampler = find_upsampler(core1_freq, core1_bits, core1_channels);
+			upsampler = find_upsampler(sound_freq, sound_bits, sound_channels);
 			format_changed = 0;
 		}
 
@@ -234,10 +234,10 @@ static void sound_thread(void *arg) {
 		WaitSema(transfer_sema);
 		CpuSuspendIntr(&intr_state);
 		int inactive_buffer = 1 - active_buffer;
-		wmemcpy(core1_buf[inactive_buffer] + 0, rendered_left + 0, 512);
-		wmemcpy(core1_buf[inactive_buffer] + 512, rendered_right + 0, 512);
-		wmemcpy(core1_buf[inactive_buffer] + 1024, rendered_left + 256, 512);
-		wmemcpy(core1_buf[inactive_buffer] + 1536, rendered_right + 256, 512);
+		wmemcpy(sound_core_buf[inactive_buffer] + 0, rendered_left + 0, 512);
+		wmemcpy(sound_core_buf[inactive_buffer] + 512, rendered_right + 0, 512);
+		wmemcpy(sound_core_buf[inactive_buffer] + 1024, rendered_left + 256, 512);
+		wmemcpy(sound_core_buf[inactive_buffer] + 1536, rendered_right + 256, 512);
 		CpuResumeIntr(intr_state);
 		if (get_available_space() >= (ringbuf_size / ITERATIONS)) {
 			SignalSema(queue_sema);
@@ -298,11 +298,11 @@ static void set_sound_format(int freq, int bits, int channels) {
 		core1_sample_shift++;
 	}
 
-	core1_freq = freq;
-	core1_bits = bits;
-	core1_channels = channels;
+	sound_freq = freq;
+	sound_bits = bits;
+	sound_channels = channels;
 
-	feed_size = ((512 * core1_freq) / 48000) << core1_sample_shift;
+	feed_size = ((512 * sound_freq) / 48000) << core1_sample_shift;
 	ringbuf_size = feed_size * ITERATIONS;
 
 	write_pos = 0;
