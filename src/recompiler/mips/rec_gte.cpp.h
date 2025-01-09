@@ -266,7 +266,7 @@ static void emitMTC2(uint32_t rt, uint32_t reg)
 		SRL(TEMP_2, TEMP_2, 31);
 		BGTZ(TEMP_2, 12);
 		MOV(TEMP_2, 0);
-		CLZ(TEMP_2, TEMP_1);
+		PLZCW(TEMP_2, TEMP_1);
 		ADDIU(TEMP_2, TEMP_2, 1);
 		SW(TEMP_2, PERM_REG_1, off(CP2D.r[31]));
 #else

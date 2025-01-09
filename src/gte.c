@@ -120,7 +120,9 @@
 #define gteLZCR  (psxRegs.CP2D.r[31])
 
 #define gteR11R12 (((int32_t *)psxRegs.CP2C.r)[0])
+#define gteR13R21 (((int32_t *)psxRegs.CP2C.r)[1])
 #define gteR22R23 (((int32_t *)psxRegs.CP2C.r)[2])
+#define gteR31R32 (((int32_t *)psxRegs.CP2C.r)[3])
 #define gteR11 (psxRegs.CP2C.p[0].sw.l)
 #define gteR12 (psxRegs.CP2C.p[0].sw.h)
 #define gteR13 (psxRegs.CP2C.p[1].sw.l)
@@ -261,6 +263,46 @@ INLINE uint32_t DIVIDE(uint16_t n, uint16_t d) {
 #else
 #include "gte_divide.h"
 #endif // GTE_USE_NATIVE_DIVIDE
+
+#ifdef PS2
+#define MMI_OPT
+#endif
+
+#ifdef MMI_OPT
+static inline void mmi_madd(int32_t *out, int32_t *rxyz, int32_t *vxyz) {
+	__asm__ volatile (
+		"lwu		$t0, 0(%1)\n"		// gteR12 gteR11
+		"lwu		$t1, 4(%1)\n" 		// gteR21 gteR13
+		"lwu		$t2, 8(%1)\n" 		// gteR23 gteR22
+		"pextlw		$t1, $t2, $t1\n" 	// gteR23 gteR22 gteR21 gteR13
+		"dsrl		$t1, $t1, 16\n" 	// gteR22 gteR21
+		"lwu		$t3, 12(%1)\n" 		// gteR32 gteR31
+		"pextlw		$t0, $t3, $t0\n" 	// gteR32 gteR31 gteR12 gteR11
+		"pextlw		$t3, $t1, $t0\n" 	// gteR32 gteR31 gteR22 gteR21 gteR12 gteR11
+		"lwu		$t0, 0(%2)\n" 		// gteVXY0
+		"pextlw		$t0, $t0, $t0\n" 	// * * * * y x y x
+		"pcpyld		$t2, $t0, $t0\n" 	// y x y x y x y x
+		"phmadh		$t3, $t3, $t2\n" 	// gteR32*y+gteR31*x | gteR22*y+gteR21*x | gteR12*y+gteR11*x
+		"lwu		$t0, 4(%1)\n" 		// gteR21 gteR13
+		"lwu		$t1, 8(%1)\n" 		// gteR23 gteR22
+		"dsrl		$t1, $t1, 16\n"		// gteR23
+		"pextlw		$t0, $t1, $t0\n"	// gteR23 gteR21 gteR13
+		"lhu		$t1, 16(%1)\n" 		// gteR33
+		"pcpyld		$t0, $t1, $t0\n" 	// gteR33 * gteR23 gteR21 gteR13
+		"lhu		$t1, 4(%2)\n" 		// gteVZ0
+		"pcpyld		$t1, $t1, $t1\n" 	// * * * z * * * z
+		"pcpyh		$t1, $t1\n" 		// z z z z z z z z
+		"pmaddh		$t2, $t0, $t1\n" 	// gteR32*y+gteR31*x+gteR33*z | gteR22*y+gteR21*x+gteR23*z | gteR12*y+gteR11*x+gteR13*z
+		"sw			$t2, %0\n"
+		"dsrl32		$t0, $t2, 0\n"
+		"sw			$t0, 4 + %0\n"
+		"pcpyud		$t2, $t2, $zero\n"
+		"sw			$t2, 8 + %0\n"
+		: "=m"(*out)
+		: "r"(rxyz), "r"(vxyz)
+		: "memory", "$12", "$13", "$14", "$15");
+}
+#endif
 
 //senquack - Applied fixes from PCSX Rearmed 7384197d8a5fd20a4d94f3517a6462f7fe86dd4c
 // Case 28 now falls through to case 29, and don't return 0 for case 30
@@ -408,9 +450,17 @@ void gteRTPS(void) {
 	psxRegs.cycle += 15;
 	gteFLAG = 0;
 
+#ifdef MMI_OPT
+	int32_t madd[3];
+	mmi_madd(madd, (int32_t *)&gteR11R12, (int32_t *)&gteVXY0);
+	gteMAC1 = A1((((int64_t)gteTRX << 12) + madd[0]) >> 12);
+	gteMAC2 = A2((((int64_t)gteTRY << 12) + madd[1]) >> 12);
+	gteMAC3 = A3((((int64_t)gteTRZ << 12) + madd[2]) >> 12);
+#else
 	gteMAC1 = A1((((int64_t)gteTRX << 12) + (gteR11 * gteVX0) + (gteR12 * gteVY0) + (gteR13 * gteVZ0)) >> 12);
 	gteMAC2 = A2((((int64_t)gteTRY << 12) + (gteR21 * gteVX0) + (gteR22 * gteVY0) + (gteR23 * gteVZ0)) >> 12);
 	gteMAC3 = A3((((int64_t)gteTRZ << 12) + (gteR31 * gteVX0) + (gteR32 * gteVY0) + (gteR33 * gteVZ0)) >> 12);
+#endif
 	gteIR1 = limB1(gteMAC1, 0);
 	gteIR2 = limB2(gteMAC2, 0);
 	gteIR3 = limB3(gteMAC3, 0);
@@ -446,12 +496,24 @@ void gteRTPT(void) {
 
 	gteSZ0 = gteSZ3;
 	for (v = 0; v < 3; v++) {
+#ifdef MMI_OPT
+		int32_t madd[3];
+		int16_t vxyz[4];
+		vxyz[0] = VX(v);
+		vxyz[1] = VY(v);
+		vxyz[2] = VZ(v);
+		mmi_madd(madd, (int32_t *)&gteR11R12, (int32_t *)vxyz);
+		gteMAC1 = A1((((int64_t)gteTRX << 12) + madd[0]) >> 12);
+		gteMAC2 = A2((((int64_t)gteTRY << 12) + madd[1]) >> 12);
+		gteMAC3 = A3((((int64_t)gteTRZ << 12) + madd[2]) >> 12);
+#else
 		vx = VX(v);
 		vy = VY(v);
 		vz = VZ(v);
 		gteMAC1 = A1((((int64_t)gteTRX << 12) + (gteR11 * vx) + (gteR12 * vy) + (gteR13 * vz)) >> 12);
 		gteMAC2 = A2((((int64_t)gteTRY << 12) + (gteR21 * vx) + (gteR22 * vy) + (gteR23 * vz)) >> 12);
 		gteMAC3 = A3((((int64_t)gteTRZ << 12) + (gteR31 * vx) + (gteR32 * vy) + (gteR33 * vz)) >> 12);
+#endif
 		gteIR1 = limB1(gteMAC1, 0);
 		gteIR2 = limB2(gteMAC2, 0);
 		gteIR3 = limB3(gteMAC3, 0);
@@ -484,9 +546,23 @@ void gteMVMVA(uint32_t gteop) {
 	psxRegs.cycle += 8;
 	gteFLAG = 0;
 
+#ifdef MMI_OPT
+	int32_t madd[3] = { 0, 0, 0 };
+	int16_t vxyz[4];
+	if (mx < 3) {
+		vxyz[0] = VX(v);
+		vxyz[1] = VY(v);
+		vxyz[2] = VZ(v);
+		mmi_madd(madd, (int32_t *)&psxRegs.CP2C.p[(mx << 3)], (int32_t *)vxyz);
+	}
+	gteMAC1 = A1((((int64_t)CV1(cv) << 12) + madd[0]) >> shift);
+	gteMAC2 = A2((((int64_t)CV2(cv) << 12) + madd[1]) >> shift);
+	gteMAC3 = A3((((int64_t)CV3(cv) << 12) + madd[2]) >> shift);
+#else
 	gteMAC1 = A1((((int64_t)CV1(cv) << 12) + (MX11(mx) * vx) + (MX12(mx) * vy) + (MX13(mx) * vz)) >> shift);
 	gteMAC2 = A2((((int64_t)CV2(cv) << 12) + (MX21(mx) * vx) + (MX22(mx) * vy) + (MX23(mx) * vz)) >> shift);
 	gteMAC3 = A3((((int64_t)CV3(cv) << 12) + (MX31(mx) * vx) + (MX32(mx) * vy) + (MX33(mx) * vz)) >> shift);
+#endif
 
 	gteIR1 = limB1(gteMAC1, lm);
 	gteIR2 = limB2(gteMAC2, lm);
@@ -553,15 +629,34 @@ void gteNCCS(void) {
 	psxRegs.cycle += 17;
 	gteFLAG = 0;
 
+#ifdef MMI_OPT
+	int32_t madd[3];
+	mmi_madd(madd, (int32_t *)&gteL11, (int32_t *)&gteVX0);
+	gteMAC1 = madd[0] >> 12;
+	gteMAC2 = madd[1] >> 12;
+	gteMAC3 = madd[2] >> 12;
+#else
 	gteMAC1 = ((int64_t)(gteL11 * gteVX0) + (gteL12 * gteVY0) + (gteL13 * gteVZ0)) >> 12;
 	gteMAC2 = ((int64_t)(gteL21 * gteVX0) + (gteL22 * gteVY0) + (gteL23 * gteVZ0)) >> 12;
 	gteMAC3 = ((int64_t)(gteL31 * gteVX0) + (gteL32 * gteVY0) + (gteL33 * gteVZ0)) >> 12;
+#endif
 	gteIR1 = limB1(gteMAC1, 1);
 	gteIR2 = limB2(gteMAC2, 1);
 	gteIR3 = limB3(gteMAC3, 1);
+#ifdef MMI_OPT
+	int16_t vxyz[4];
+	vxyz[0] = gteIR1;
+	vxyz[1] = gteIR2;
+	vxyz[2] = gteIR3;
+	mmi_madd(madd, (int32_t *)&gteLR1, (int32_t *)vxyz);
+	gteMAC1 = A1((((int64_t)gteRBK << 12) + madd[0]) >> 12);
+	gteMAC2 = A2((((int64_t)gteGBK << 12) + madd[1]) >> 12);
+	gteMAC3 = A3((((int64_t)gteBBK << 12) + madd[2]) >> 12);
+#else
 	gteMAC1 = A1((((int64_t)gteRBK << 12) + (gteLR1 * gteIR1) + (gteLR2 * gteIR2) + (gteLR3 * gteIR3)) >> 12);
 	gteMAC2 = A2((((int64_t)gteGBK << 12) + (gteLG1 * gteIR1) + (gteLG2 * gteIR2) + (gteLG3 * gteIR3)) >> 12);
 	gteMAC3 = A3((((int64_t)gteBBK << 12) + (gteLB1 * gteIR1) + (gteLB2 * gteIR2) + (gteLB3 * gteIR3)) >> 12);
+#endif
 	gteIR1 = limB1(gteMAC1, 1);
 	gteIR2 = limB2(gteMAC2, 1);
 	gteIR3 = limB3(gteMAC3, 1);
@@ -591,18 +686,40 @@ void gteNCCT(void) {
 	gteFLAG = 0;
 
 	for (v = 0; v < 3; v++) {
+#ifdef MMI_OPT
+		int32_t madd[3];
+		int16_t vxyz[4];
+		vxyz[0] = VX(v);
+		vxyz[1] = VY(v);
+		vxyz[2] = VZ(v);
+		mmi_madd(madd, (int32_t *)&gteL11, (int32_t *)&vxyz);
+		gteMAC1 = madd[0] >> 12;
+		gteMAC2 = madd[1] >> 12;
+		gteMAC3 = madd[2] >> 12;
+#else
 		vx = VX(v);
 		vy = VY(v);
 		vz = VZ(v);
 		gteMAC1 = ((int64_t)(gteL11 * vx) + (gteL12 * vy) + (gteL13 * vz)) >> 12;
 		gteMAC2 = ((int64_t)(gteL21 * vx) + (gteL22 * vy) + (gteL23 * vz)) >> 12;
 		gteMAC3 = ((int64_t)(gteL31 * vx) + (gteL32 * vy) + (gteL33 * vz)) >> 12;
+#endif
 		gteIR1 = limB1(gteMAC1, 1);
 		gteIR2 = limB2(gteMAC2, 1);
 		gteIR3 = limB3(gteMAC3, 1);
+#ifdef MMI_OPT
+		vxyz[0] = gteIR1;
+		vxyz[1] = gteIR2;
+		vxyz[2] = gteIR3;
+		mmi_madd(madd, (int32_t *)&gteLR1, (int32_t *)vxyz);
+		gteMAC1 = A1((((int64_t)gteRBK << 12) + madd[0]) >> 12);
+		gteMAC2 = A2((((int64_t)gteGBK << 12) + madd[1]) >> 12);
+		gteMAC3 = A3((((int64_t)gteBBK << 12) + madd[2]) >> 12);
+#else
 		gteMAC1 = A1((((int64_t)gteRBK << 12) + (gteLR1 * gteIR1) + (gteLR2 * gteIR2) + (gteLR3 * gteIR3)) >> 12);
 		gteMAC2 = A2((((int64_t)gteGBK << 12) + (gteLG1 * gteIR1) + (gteLG2 * gteIR2) + (gteLG3 * gteIR3)) >> 12);
 		gteMAC3 = A3((((int64_t)gteBBK << 12) + (gteLB1 * gteIR1) + (gteLB2 * gteIR2) + (gteLB3 * gteIR3)) >> 12);
+#endif
 		gteIR1 = limB1(gteMAC1, 1);
 		gteIR2 = limB2(gteMAC2, 1);
 		gteIR3 = limB3(gteMAC3, 1);
@@ -629,15 +746,34 @@ void gteNCDS(void) {
 	psxRegs.cycle += 19;
 	gteFLAG = 0;
 
+#ifdef MMI_OPT
+	int32_t madd[3];
+	mmi_madd(madd, (int32_t *)&gteL11, (int32_t *)&gteVX0);
+	gteMAC1 = madd[0] >> 12;
+	gteMAC2 = madd[1] >> 12;
+	gteMAC3 = madd[2] >> 12;
+#else
 	gteMAC1 = ((int64_t)(gteL11 * gteVX0) + (gteL12 * gteVY0) + (gteL13 * gteVZ0)) >> 12;
 	gteMAC2 = ((int64_t)(gteL21 * gteVX0) + (gteL22 * gteVY0) + (gteL23 * gteVZ0)) >> 12;
 	gteMAC3 = ((int64_t)(gteL31 * gteVX0) + (gteL32 * gteVY0) + (gteL33 * gteVZ0)) >> 12;
+#endif
 	gteIR1 = limB1(gteMAC1, 1);
 	gteIR2 = limB2(gteMAC2, 1);
 	gteIR3 = limB3(gteMAC3, 1);
+#ifdef MMI_OPT
+	int16_t vxyz[4];
+	vxyz[0] = gteIR1;
+	vxyz[1] = gteIR2;
+	vxyz[2] = gteIR3;
+	mmi_madd(madd, (int32_t *)&gteLR1, (int32_t *)vxyz);
+	gteMAC1 = A1((((int64_t)gteRBK << 12) + madd[0]) >> 12);
+	gteMAC2 = A2((((int64_t)gteGBK << 12) + madd[1]) >> 12);
+	gteMAC3 = A3((((int64_t)gteBBK << 12) + madd[2]) >> 12);
+#else
 	gteMAC1 = A1((((int64_t)gteRBK << 12) + (gteLR1 * gteIR1) + (gteLR2 * gteIR2) + (gteLR3 * gteIR3)) >> 12);
 	gteMAC2 = A2((((int64_t)gteGBK << 12) + (gteLG1 * gteIR1) + (gteLG2 * gteIR2) + (gteLG3 * gteIR3)) >> 12);
 	gteMAC3 = A3((((int64_t)gteBBK << 12) + (gteLB1 * gteIR1) + (gteLB2 * gteIR2) + (gteLB3 * gteIR3)) >> 12);
+#endif
 	gteIR1 = limB1(gteMAC1, 1);
 	gteIR2 = limB2(gteMAC2, 1);
 	gteIR3 = limB3(gteMAC3, 1);
@@ -667,18 +803,40 @@ void gteNCDT(void) {
 	gteFLAG = 0;
 
 	for (v = 0; v < 3; v++) {
+#ifdef MMI_OPT
+		int32_t madd[3];
+		int16_t vxyz[4];
+		vxyz[0] = VX(v);
+		vxyz[1] = VY(v);
+		vxyz[2] = VZ(v);
+		mmi_madd(madd, (int32_t *)&gteL11, (int32_t *)vxyz);
+		gteMAC1 = madd[0] >> 12;
+		gteMAC2 = madd[1] >> 12;
+		gteMAC3 = madd[2] >> 12;
+#else
 		vx = VX(v);
 		vy = VY(v);
 		vz = VZ(v);
 		gteMAC1 = ((int64_t)(gteL11 * vx) + (gteL12 * vy) + (gteL13 * vz)) >> 12;
 		gteMAC2 = ((int64_t)(gteL21 * vx) + (gteL22 * vy) + (gteL23 * vz)) >> 12;
 		gteMAC3 = ((int64_t)(gteL31 * vx) + (gteL32 * vy) + (gteL33 * vz)) >> 12;
+#endif
 		gteIR1 = limB1(gteMAC1, 1);
 		gteIR2 = limB2(gteMAC2, 1);
 		gteIR3 = limB3(gteMAC3, 1);
+#ifdef MMI_OPT
+		vxyz[0] = gteIR1;
+		vxyz[1] = gteIR2;
+		vxyz[2] = gteIR3;
+		mmi_madd(madd, (int32_t *)&gteLR1, (int32_t *)vxyz);
+		gteMAC1 = A1((((int64_t)gteRBK << 12) + madd[0]) >> 12);
+		gteMAC2 = A2((((int64_t)gteGBK << 12) + madd[1]) >> 12);
+		gteMAC3 = A3((((int64_t)gteBBK << 12) + madd[2]) >> 12);
+#else
 		gteMAC1 = A1((((int64_t)gteRBK << 12) + (gteLR1 * gteIR1) + (gteLR2 * gteIR2) + (gteLR3 * gteIR3)) >> 12);
 		gteMAC2 = A2((((int64_t)gteGBK << 12) + (gteLG1 * gteIR1) + (gteLG2 * gteIR2) + (gteLG3 * gteIR3)) >> 12);
 		gteMAC3 = A3((((int64_t)gteBBK << 12) + (gteLB1 * gteIR1) + (gteLB2 * gteIR2) + (gteLB3 * gteIR3)) >> 12);
+#endif
 		gteIR1 = limB1(gteMAC1, 1);
 		gteIR2 = limB2(gteMAC2, 1);
 		gteIR3 = limB3(gteMAC3, 1);
@@ -854,16 +1012,34 @@ void gteNCS(void) {
 #endif
 	psxRegs.cycle += 14;
 	gteFLAG = 0;
-
+#ifdef MMI_OPT
+	int32_t madd[3];
+	mmi_madd(madd, (int32_t *)&gteL11, (int32_t *)&gteVX0);
+	gteMAC1 = madd[0] >> 12;
+	gteMAC2 = madd[1] >> 12;
+	gteMAC3 = madd[2] >> 12;
+#else
 	gteMAC1 = ((int64_t)(gteL11 * gteVX0) + (gteL12 * gteVY0) + (gteL13 * gteVZ0)) >> 12;
 	gteMAC2 = ((int64_t)(gteL21 * gteVX0) + (gteL22 * gteVY0) + (gteL23 * gteVZ0)) >> 12;
 	gteMAC3 = ((int64_t)(gteL31 * gteVX0) + (gteL32 * gteVY0) + (gteL33 * gteVZ0)) >> 12;
+#endif
 	gteIR1 = limB1(gteMAC1, 1);
 	gteIR2 = limB2(gteMAC2, 1);
 	gteIR3 = limB3(gteMAC3, 1);
+#ifdef MMI_OPT
+	int16_t vxyz[4];
+	vxyz[0] = gteIR1;
+	vxyz[1] = gteIR2;
+	vxyz[2] = gteIR3;
+	mmi_madd(madd, (int32_t *)&gteLR1, (int32_t *)vxyz);
+	gteMAC1 = A1((((int64_t)gteRBK << 12) + madd[0]) >> 12);
+	gteMAC2 = A2((((int64_t)gteGBK << 12) + madd[1]) >> 12);
+	gteMAC3 = A3((((int64_t)gteBBK << 12) + madd[2]) >> 12);
+#else
 	gteMAC1 = A1((((int64_t)gteRBK << 12) + (gteLR1 * gteIR1) + (gteLR2 * gteIR2) + (gteLR3 * gteIR3)) >> 12);
 	gteMAC2 = A2((((int64_t)gteGBK << 12) + (gteLG1 * gteIR1) + (gteLG2 * gteIR2) + (gteLG3 * gteIR3)) >> 12);
 	gteMAC3 = A3((((int64_t)gteBBK << 12) + (gteLB1 * gteIR1) + (gteLB2 * gteIR2) + (gteLB3 * gteIR3)) >> 12);
+#endif
 	gteIR1 = limB1(gteMAC1, 1);
 	gteIR2 = limB2(gteMAC2, 1);
 	gteIR3 = limB3(gteMAC3, 1);
@@ -887,18 +1063,40 @@ void gteNCT(void) {
 	gteFLAG = 0;
 
 	for (v = 0; v < 3; v++) {
+#ifdef MMI_OPT
+		int32_t madd[3];
+		int16_t vxyz[4];
+		vxyz[0] = VX(v);
+		vxyz[1] = VY(v);
+		vxyz[2] = VZ(v);
+		mmi_madd(madd, (int32_t *)&gteL11, (int32_t *)vxyz);
+		gteMAC1 = madd[0] >> 12;
+		gteMAC2 = madd[1] >> 12;
+		gteMAC3 = madd[2] >> 12;
+#else
 		vx = VX(v);
 		vy = VY(v);
 		vz = VZ(v);
 		gteMAC1 = ((int64_t)(gteL11 * vx) + (gteL12 * vy) + (gteL13 * vz)) >> 12;
 		gteMAC2 = ((int64_t)(gteL21 * vx) + (gteL22 * vy) + (gteL23 * vz)) >> 12;
 		gteMAC3 = ((int64_t)(gteL31 * vx) + (gteL32 * vy) + (gteL33 * vz)) >> 12;
+#endif
 		gteIR1 = limB1(gteMAC1, 1);
 		gteIR2 = limB2(gteMAC2, 1);
 		gteIR3 = limB3(gteMAC3, 1);
+#ifdef MMI_OPT
+		vxyz[0] = gteIR1;
+		vxyz[1] = gteIR2;
+		vxyz[2] = gteIR3;
+		mmi_madd(madd, (int32_t *)&gteLR1, (int32_t *)vxyz);
+		gteMAC1 = A1((((int64_t)gteRBK << 12) + madd[0]) >> 12);
+		gteMAC2 = A2((((int64_t)gteGBK << 12) + madd[1]) >> 12);
+		gteMAC3 = A3((((int64_t)gteBBK << 12) + madd[2]) >> 12);
+#else
 		gteMAC1 = A1((((int64_t)gteRBK << 12) + (gteLR1 * gteIR1) + (gteLR2 * gteIR2) + (gteLR3 * gteIR3)) >> 12);
 		gteMAC2 = A2((((int64_t)gteGBK << 12) + (gteLG1 * gteIR1) + (gteLG2 * gteIR2) + (gteLG3 * gteIR3)) >> 12);
 		gteMAC3 = A3((((int64_t)gteBBK << 12) + (gteLB1 * gteIR1) + (gteLB2 * gteIR2) + (gteLB3 * gteIR3)) >> 12);
+#endif
 		gteRGB0 = gteRGB1;
 		gteRGB1 = gteRGB2;
 		gteCODE2 = gteCODE;
@@ -918,9 +1116,21 @@ void gteCC(void) {
 	psxRegs.cycle += 11;
 	gteFLAG = 0;
 
+#ifdef MMI_OPT
+	int32_t madd[3];
+	int16_t vxyz[4];
+	vxyz[0] = gteIR1;
+	vxyz[1] = gteIR2;
+	vxyz[2] = gteIR3;
+	mmi_madd(madd, (int32_t *)&gteLR1, (int32_t *)vxyz);
+	gteMAC1 = A1((((int64_t)gteRBK << 12) + madd[0]) >> 12);
+	gteMAC2 = A2((((int64_t)gteGBK << 12) + madd[1]) >> 12);
+	gteMAC3 = A3((((int64_t)gteBBK << 12) + madd[2]) >> 12);
+#else
 	gteMAC1 = A1((((int64_t)gteRBK << 12) + (gteLR1 * gteIR1) + (gteLR2 * gteIR2) + (gteLR3 * gteIR3)) >> 12);
 	gteMAC2 = A2((((int64_t)gteGBK << 12) + (gteLG1 * gteIR1) + (gteLG2 * gteIR2) + (gteLG3 * gteIR3)) >> 12);
 	gteMAC3 = A3((((int64_t)gteBBK << 12) + (gteLB1 * gteIR1) + (gteLB2 * gteIR2) + (gteLB3 * gteIR3)) >> 12);
+#endif
 	gteIR1 = limB1(gteMAC1, 1);
 	gteIR2 = limB2(gteMAC2, 1);
 	gteIR3 = limB3(gteMAC3, 1);
@@ -971,9 +1181,21 @@ void gteCDP(void) {
 	psxRegs.cycle += 13;
 	gteFLAG = 0;
 
+#ifdef MMI_OPT
+	int32_t madd[3];
+	int16_t vxyz[4];
+	vxyz[0] = gteIR1;
+	vxyz[1] = gteIR2;
+	vxyz[2] = gteIR3;
+	mmi_madd(madd, (int32_t *)&gteLR1, (int32_t *)vxyz);
+	gteMAC1 = A1((((int64_t)gteRBK << 12) + madd[0]) >> 12);
+	gteMAC2 = A2((((int64_t)gteGBK << 12) + madd[1]) >> 12);
+	gteMAC3 = A3((((int64_t)gteBBK << 12) + madd[2]) >> 12);
+#else
 	gteMAC1 = A1((((int64_t)gteRBK << 12) + (gteLR1 * gteIR1) + (gteLR2 * gteIR2) + (gteLR3 * gteIR3)) >> 12);
 	gteMAC2 = A2((((int64_t)gteGBK << 12) + (gteLG1 * gteIR1) + (gteLG2 * gteIR2) + (gteLG3 * gteIR3)) >> 12);
 	gteMAC3 = A3((((int64_t)gteBBK << 12) + (gteLB1 * gteIR1) + (gteLB2 * gteIR2) + (gteLB3 * gteIR3)) >> 12);
+#endif
 	gteIR1 = limB1(gteMAC1, 1);
 	gteIR2 = limB2(gteMAC2, 1);
 	gteIR3 = limB3(gteMAC3, 1);

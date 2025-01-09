@@ -48,7 +48,7 @@ void GPU_writeStatus(uint32_t data);
 void GPU_writeDataMem(uint32_t *mem, int count);
 int do_cmd_buffer(uint32_t *data, int count);
 
-extern int do_cmd_list(unsigned int *list, int list_len, int *last_cmd);
+extern int do_cmd_list(uint32_t *list, int list_len, int *last_cmd);
 extern void renderer_sync_ecmds(uint32_t *ecmds);
 extern void renderer_update_caches(int x, int y, int w, int h);
 extern void renderer_flush_queues(void);

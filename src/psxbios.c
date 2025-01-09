@@ -1189,7 +1189,7 @@ void psxBios_qsort() { // 0x31
 }
 
 void psxBios_malloc(void) { // 33
-	unsigned int *chunk, *newchunk = NULL;
+	uint32_t *chunk, *newchunk = NULL;
 	unsigned int dsize = 0, csize, cstat;
 	int colflag;
 #ifdef PSXBIOS_LOG

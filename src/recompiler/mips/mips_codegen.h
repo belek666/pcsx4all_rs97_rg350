@@ -110,9 +110,7 @@ typedef enum {
  */
 
 /* XXX: encoding of 3-op MUL changed in MIPS32r6, but hasn't been updated here. */
-#ifndef PS2
 #define HAVE_MIPS32_3OP_MUL
-#endif
 
 // MIPS32r2 introduced useful instructions:
 #if (defined(__mips_isa_rev) && (__mips_isa_rev >= 2)) || \
@@ -331,8 +329,13 @@ do { \
 	write32(0x00000007 | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
 
 #ifdef HAVE_MIPS32_3OP_MUL
+#ifdef PS2
+#define MUL(rd, rs, rt) \
+	write32(0x70000018 | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
+#else
 #define MUL(rd, rs, rt) \
 	write32(0x70000002 | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
+#endif
 #endif // HAVE_MIPS32_3OP_MUL
 
 #define MULT(rs, rt) \
@@ -420,8 +423,7 @@ do {                                                                           \
 
 
 #ifdef PS2
-#warning not real clz
-#define CLZ(rd, rs) \
+#define PLZCW(rd, rs) \
 	write32(0x70000004 | ((rs) << 21) | ((rd) << 11))
 #else
 #define CLZ(rd, rs) \

@@ -51,6 +51,8 @@ void CALLBACK SPUwriteRegister(unsigned long reg, unsigned short val,
  int changed = spu.regArea[rofs] != val;
  spu.regArea[rofs] = val;
 
+ 	printf("SPU_writeRegister address=0x%08lx value=0x%04x\n", reg, val);
+
  if (!changed && (ignore_dupe[rofs >> 5] & (1 << (rofs & 0x1f))))
   return;
  // zero keyon/keyoff?
@@ -287,6 +289,7 @@ rvbd:
 unsigned short CALLBACK SPUreadRegister(unsigned long reg)
 {
  const unsigned long r=reg&0xfff;
+ unsigned short ret_val = spu.regArea[(r-0xc00)>>1];
         
  if(r>=0x0c00 && r<0x0d80)
   {
@@ -295,17 +298,22 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
      case 12:                                          // get adsr vol
       {
        const int ch=(r>>4)-0xc0;
-       if(spu.dwNewChannel&(1<<ch)) return 1;          // we are started, but not processed? return 1
+       if(spu.dwNewChannel&(1<<ch)) { ret_val = 1; break; }          // we are started, but not processed? return 1
+       
        if((spu.dwChannelOn&(1<<ch)) &&                 // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
-          !spu.s_chan[ch].ADSRX.EnvelopeVol)
-        return 1;
-       return (unsigned short)(spu.s_chan[ch].ADSRX.EnvelopeVol>>16);
+          !spu.s_chan[ch].ADSRX.EnvelopeVol) {
+            ret_val = 1; break; 
+          }
+
+       ret_val = (unsigned short)(spu.s_chan[ch].ADSRX.EnvelopeVol>>16);
+       break;
       }
 
      case 14:                                          // get loop address
       {
        const int ch=(r>>4)-0xc0;
-       return (unsigned short)((spu.s_chan[ch].pLoop-spu.spuMemC)>>3);
+       ret_val = (unsigned short)((spu.s_chan[ch].pLoop-spu.spuMemC)>>3);
+       break;
       }
     }
   }
@@ -313,20 +321,20 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
  switch(r)
   {
     case H_SPUctrl:
-     return spu.spuCtrl;
+     ret_val = spu.spuCtrl; break;
 
     case H_SPUstat:
-     return (spu.spuStat & ~0x3F) | (spu.spuCtrl & 0x3F);
+     ret_val = (spu.spuStat & ~0x3F) | (spu.spuCtrl & 0x3F); break;
         
     case H_SPUaddr:
-     return (unsigned short)(spu.spuAddr>>3);
+     ret_val = (unsigned short)(spu.spuAddr>>3); break;
 
     case H_SPUdata:
      {
       unsigned short s = *(unsigned short *)(spu.spuMemC + spu.spuAddr);
       spu.spuAddr += 2;
       spu.spuAddr &= 0x7fffe;
-      return s;
+      ret_val = s; break;
      }
 
     //case H_SPUIsOn1:
@@ -336,8 +344,9 @@ unsigned short CALLBACK SPUreadRegister(unsigned long reg)
     // return IsSoundOn(16,24);
  
   }
+	printf("SPU_readRegister address=0x%08lx value=0x%04x\n", reg, ret_val);
 
- return spu.regArea[(r-0xc00)>>1];
+ return ret_val;
 }
  
 ////////////////////////////////////////////////////////////////////////

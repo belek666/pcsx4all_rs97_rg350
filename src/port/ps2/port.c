@@ -106,16 +106,34 @@ extern int size_usbd_irx;
 extern u8 fileXio_irx[];
 extern int size_fileXio_irx;
 
+#ifdef SPU_PCSXREARMED
+
 extern u8 libsd_irx[];
 extern int size_libsd_irx;
 
 extern u8 audsrv_irx[];
 extern int size_audsrv_irx;
 
+#elif defined(PS2_SPU)
+
+extern u8 sbusintr_irx[];
+extern int size_sbusintr_irx;
+
+extern u8 iop_spu_irx[];
+extern int size_iop_spu_irx;
+
+#endif
+
 
 void config_load();
 void config_save();
 void update_window_size(int w, int h, uint_fast8_t ntsc_fix);
+
+int Setup_Pad();
+void Wait_Pad_Ready();
+void nop_delay(int count);
+void init_gs(int bpp);
+void init_texture(int w, int h, int bpp);
 
 static void pcsx4all_exit(void)
 {
@@ -663,11 +681,12 @@ unsigned short pad_read(int num)
 void video_flip(void)
 {
 	if (emu_running && Config.ShowFps) {
-		port_printf(5, 5, pl_data.stats_msg);
+		port_printf(5, 10, pl_data.stats_msg);
 	}
 
 	SyncDCache(gsTexture.Mem, (u8*)gsTexture.Mem + gsKit_texture_size_ee(gsTexture.Width, gsTexture.Height, gsTexture.PSM));
 	gsKit_texture_send_inline(gsGlobal, gsTexture.Mem, gsTexture.Width, gsTexture.Height, gsTexture.Vram, gsTexture.PSM, gsTexture.TBW, GS_CLUT_NONE);
+	//gsKit_texture_upload(gsGlobal, &gsTexture);
 
 	gsKit_prim_sprite_texture_3d(gsGlobal, &gsTexture,
 		0,
@@ -682,8 +701,8 @@ void video_flip(void)
 		gsTexture.Height, // V2
 		GS_SETREG_RGBAQ(0x80, 0x80, 0x80, 0x80, 0x00));
 
-	gsKit_sync_flip(gsGlobal);
 	gsKit_queue_exec(gsGlobal);
+	gsKit_sync_flip(gsGlobal);
 
 	//SCREEN = (Uint16 *)screen->pixels;
 }
@@ -821,8 +840,7 @@ void update_window_size(int w, int h, uint_fast8_t ntsc_fix)
 	}
 	SCREEN_HEIGHT = h;
 
-	init_gs(SCREEN_WIDTH, SCREEN_HEIGHT, 16);
-	SCREEN = (u16 *)gsTexture.Mem;
+	init_texture(w, h, 16);
 
 	video_clear();
 	video_flip();
@@ -836,11 +854,16 @@ int main (int argc, char **argv)
 
 	filename[0] = '\0'; /* Executable file name */
 
-	/*argc = 1 + 2;
+	argc = 1 + 2;
 	argv[1] = "-iso";
-	argv[2] = "Silent Hill (USA) (v1.1).cue";
-	argv[3] = "-bios";
-	argv[4] = "bios/SCPH1001.BIN";*/
+	//argv[2] = "Silent Hill (USA) (v1.1).cue";
+	argv[2] = "mass:/PSXISO/Chrono Cross (USA) (Disc 1).cue";
+	//argv[2] = "mass:/PSXISO/Silent Hill (USA) (v1.1).cue";
+	//argv[2] = "Chrono Cross (USA) (Disc 1).cue";
+	//argv[2] = "Tomb Raider (Europe)/Tomb Raider (Europe).cue";
+	//argv[2] = "Quake II (USA).cue";
+	//argv[3] = "-bios";
+	//argv[4] = "bios/SCPH1001.BIN";
 
 #ifdef USE_FILEXIO
 	SifInitRpc(0);
@@ -877,8 +900,13 @@ int main (int argc, char **argv)
 
 	SifExecModuleBuffer(usbd_irx, size_usbd_irx, 0, NULL, NULL);
 	SifExecModuleBuffer(usbhdfsd_irx, size_usbhdfsd_irx, 0, NULL, NULL);
+#ifdef SPU_PCSXREARMED
 	SifExecModuleBuffer(libsd_irx, size_libsd_irx, 0, NULL, NULL);
 	SifExecModuleBuffer(audsrv_irx, size_audsrv_irx, 0, NULL, NULL);
+#elif defined(PS2_SPU)
+	SifExecModuleBuffer(sbusintr_irx, size_sbusintr_irx, 0, NULL, NULL);
+	SifExecModuleBuffer(iop_spu_irx, size_iop_spu_irx, 0, NULL, NULL);
+#endif
 
 	nop_delay(5);
 
@@ -917,7 +945,7 @@ int main (int argc, char **argv)
 	Config.SlowBoot=0; /* 0=skip bios logo sequence on boot  1=show sequence (does not apply to HLE) */
 	Config.RCntFix=0; /* 1=Parasite Eve 2, Vandal Hearts 1/2 Fix */
 	Config.VSyncWA=0; /* 1=InuYasha Sengoku Battle Fix */
-	Config.SpuIrq=0; /* 1=SPU IRQ always on, fixes some games */
+	Config.SpuIrq=1; /* 1=SPU IRQ always on, fixes some games */
 
 	Config.SyncAudio=0;	/* 1=emu waits if audio output buffer is full
 	                       (happens seldom with new auto frame limit) */
@@ -1333,8 +1361,8 @@ int main (int argc, char **argv)
 	}
 
 	//NOTE: spu_pcsxrearmed will handle audio initialization
-	init_gs(SCREEN_WIDTH, SCREEN_HEIGHT, 16);
-
+	init_gs(16);
+	init_texture(SCREEN_WIDTH, SCREEN_HEIGHT, 16);
 	SCREEN = (u16 *)gsTexture.Mem;
 
 	atexit(pcsx4all_exit);
@@ -1556,8 +1584,6 @@ void Wait_Pad_Ready(void)
 int Setup_Pad(void)
 {
 	int ret, i, port, state, modes;
-
-	//padEnd();
 	padInit(0);
 
 	for (port = 0; port < 2; port++) {
@@ -1617,9 +1643,9 @@ void nop_delay(int count)
 	}
 }
 
-static u32 textureMem[640 * 480 / 2] __attribute__((aligned(128)));
+static u32 textureMem[640 * 480] __attribute__((aligned(64)));
 
-void init_gs(int w, int h, int bpp)
+void init_gs(int bpp)
 {
 	if (gsGlobal != NULL) {
 		gsKit_deinit_global(gsGlobal);
@@ -1639,9 +1665,9 @@ void init_gs(int w, int h, int bpp)
 		gsGlobal->PSMZ = GS_PSMZ_32;
 	}
 
-	gsGlobal->DoubleBuffering = GS_SETTING_OFF;
+	gsGlobal->DoubleBuffering = GS_SETTING_ON;
 	//gsGlobal->PrimAlphaEnable = GS_SETTING_ON;
-	//gsGlobal->ZBuffering = GS_SETTING_ON;
+	gsGlobal->ZBuffering = GS_SETTING_OFF;
 
 	gsGlobal->Mode = GS_MODE_NTSC;
 	gsGlobal->Interlace = GS_INTERLACED;
@@ -1664,16 +1690,25 @@ void init_gs(int w, int h, int bpp)
 	gsKit_queue_exec(gsGlobal);
 	gsKit_sync_flip(gsGlobal);
 
+	gsKit_clear(gsGlobal, GS_SETREG_RGBAQ(0x00, 0x00, 0x00, 0x80, 0x00));
+	gsKit_queue_exec(gsGlobal);
+	gsKit_sync_flip(gsGlobal);
+	
+	gsTexture.Width = 640;
+	gsTexture.Height = 480;
+	gsTexture.PSM = GS_PSM_CT32;
+	gsTexture.Vram = gsKit_vram_alloc(gsGlobal, gsKit_texture_size(gsTexture.Width, gsTexture.Height, gsTexture.PSM), GSKIT_ALLOC_USERBUFFER);
+	gsTexture.Mem = textureMem;
+}
+
+void init_texture(int w, int h, int bpp) {
 	gsTexture.Width = w;
 	gsTexture.Height = h;
-	gsTexture.PSM = GS_PSM_CT16;
-
-	/*if (textureMem == NULL) {
-		textureMem = (u32*)memalign(128, gsKit_texture_size_ee(gsTexture.Width, gsTexture.Height, gsTexture.PSM));
-	}*/
-
-	gsTexture.Mem = textureMem;
-	//gsTexture.Mem = (u32*)memalign(128, gsKit_texture_size_ee(gsTexture.Width, gsTexture.Height, gsTexture.PSM));
-	gsTexture.Vram = gsKit_vram_alloc(gsGlobal, gsKit_texture_size(gsTexture.Width, gsTexture.Height, gsTexture.PSM), GSKIT_ALLOC_USERBUFFER);
+	if (bpp == 16) {
+		gsTexture.PSM = GS_PSM_CT16;
+	}
+	else {
+		gsTexture.PSM = GS_PSM_CT32;
+	}
 	gsKit_setup_tbw(&gsTexture);
 }

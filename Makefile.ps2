@@ -15,8 +15,9 @@ include $(PS2SDK)/samples/Makefile.pref
 include $(PS2SDK)/samples/Makefile.eeglobal
 
 GPU  = gpu_unai
-SPU  = spu_pcsxrearmed
+#SPU  = spu_pcsxrearmed
 #SPU  = null_spu
+SPU  = ps2_spu
 
 RECOMPILER = mips
 
@@ -29,7 +30,7 @@ BIN2C = $(PS2SDK)/bin/bin2c
 
 
 C_ARCH = -DHAVE_MIPS32R2_CACHE_OPS -DIOAPI_NO_64
-OPTS = -O2 -mno-fp-exceptions -mframe-header-opt -mno-check-zero-division -fno-signed-zeros -fno-trapping-math -mno-interlink-compressed -fno-caller-saves -flto=8
+OPTS = -g -O2 -mno-fp-exceptions -mframe-header-opt -mno-check-zero-division -fno-signed-zeros -fno-trapping-math -mno-interlink-compressed -fno-caller-saves -flto=8
 
 CFLAGS = $(C_ARCH) -fno-common -fno-PIC -fdata-sections -ffunction-sections $(OPTS) -DPS2 -DUSE_BGR15 \
 	-Wall -Wunused -Wpointer-arith \
@@ -53,7 +54,7 @@ endif
 
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti -nostdinc++ 
 
-LDFLAGS := $(EE_OPTFLAGS) $(EE_LDFLAGS) $(EE_LIBS) $(EXTRA_LDFLAGS)
+LDFLAGS := $(EE_OPTFLAGS) $(EE_LDFLAGS) $(EE_LIBS) $(EXTRA_LDFLAGS) $(OPTS) -Wl,--export-dynamic
 
 ifdef PS2_TLB
 CFLAGS += -DPS2TLB
@@ -181,7 +182,13 @@ endif
 # spu_pcsxrearmed END
 #******************************************
 
-OBJS += obj/iomanX_irx.o obj/fileXio_irx.o obj/usbhdfsd_irx.o obj/usbd_irx.o obj/libsd_irx.o obj/audsrv_irx.o
+OBJS += obj/iomanX_irx.o obj/fileXio_irx.o obj/usbhdfsd_irx.o obj/usbd_irx.o 
+
+ifeq ($(SPU),ps2_spu)
+OBJS += obj/sbusintr_irx.o obj/iop_spu_irx.o
+else
+OBJS += obj/libsd_irx.o obj/audsrv_irx.o
+endif
 
 CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions
 
@@ -212,8 +219,14 @@ obj/%.o: src/%.S
 	@echo Compiling $<...
 	$(HIDECMD)$(CXX) -std=gnu99 $(CFLAGS) -c $< -o $@
 	
+obj/iop_spu_irx.c:
+	@echo Compiling $<...
+	make -C ./src/spu/ps2_spu/iop
+	$(HIDECMD)$(BIN2C) ./src/spu/ps2_spu/iop/iop_spu.irx obj/iop_spu_irx.c iop_spu_irx
+	
 obj/%_irx.c: $(PS2SDK)/iop/irx/%.irx
-	$(BIN2C) $^ obj/$*_irx.c $*_irx
+	@echo Compiling $<...
+	$(HIDECMD)$(BIN2C) $^ obj/$*_irx.c $*_irx
 
 $(sort $(OBJDIRS)):
 	$(HIDECMD)$(MD) $@
@@ -233,4 +246,4 @@ listen:
 strip:
 	$(EE_STRIP) $(TARGET)
 teste:
-	$(EE_ADDR2LINE) -e $(TARGET) 001af384
+	$(EE_ADDR2LINE) -e $(TARGET) 006CA240

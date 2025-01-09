@@ -17,6 +17,7 @@
 
 #ifdef PS2
 #include <libpad.h>
+extern void Wait_Pad_Ready(void);
 #else
 #include <SDL.h>
 #endif
@@ -74,8 +75,9 @@ static unsigned int key_read(void)
 #ifdef PS2
 	Wait_Pad_Ready();
 	struct padButtonStatus pad;
-	padRead(0, 0, &pad);
-	pad.btns ^= 0xFFFF;
+	if (padRead(0, 0, &pad)) {
+		pad.btns ^= 0xFFFF;
+	}
 
 	ret = pad.btns;
 #else

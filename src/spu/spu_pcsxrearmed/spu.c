@@ -1316,7 +1316,7 @@ static void SetupStreams(void)
  spu.SSumLR = calloc(NSSIZE * 2, sizeof(spu.SSumLR[0]));
 
  spu.XAStart =                                         // alloc xa buffer
-  (uint32_t *)malloc(44100 * sizeof(uint32_t));
+  (unsigned int  *)malloc(44100 * sizeof( unsigned int));
  spu.XAEnd   = spu.XAStart + 44100;
  spu.XAPlay  = spu.XAStart;
  spu.XAFeed  = spu.XAStart;
@@ -1324,7 +1324,7 @@ static void SetupStreams(void)
  UpdateXABufferRoom();
 
  spu.CDDAStart =                                       // alloc cdda buffer
-  (uint32_t *)malloc(CDDA_BUFFER_SIZE);
+  ( unsigned int  *)malloc(CDDA_BUFFER_SIZE);
  spu.CDDAEnd   = spu.CDDAStart + 16384;
  spu.CDDAPlay  = spu.CDDAStart;
  spu.CDDAFeed  = spu.CDDAStart;
