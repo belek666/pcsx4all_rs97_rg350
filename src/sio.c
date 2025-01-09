@@ -458,13 +458,13 @@ void sioSyncMcds()
 int sioMcdWrite(enum MemcardNum mcd_num, const char *src, uint32_t adr, int size)
 {
 	if (adr >= MCD_SIZE) {
-		printf("Error in %s(): memcard %d, adr %x is outside memcard bounds (128KB)\n",
+		printf("Error in %s(): memcard %d, adr %lx is outside memcard bounds (128KB)\n",
 				__func__, mcd_num+1, adr);
 		return -1;
 	}
 
 	if ((adr + size) > MCD_SIZE) {
-		printf("Error in %s(): memcard %d, adr %x + size %x is outside memcard bounds (128KB)\n",
+		printf("Error in %s(): memcard %d, adr %lx + size %x is outside memcard bounds (128KB)\n",
 				__func__, mcd_num+1, adr, size);
 		size = MCD_SIZE - adr;
 		printf("Adjusted size to within 128KB range: %x\n", size);
@@ -504,13 +504,13 @@ int sioMcdWrite(enum MemcardNum mcd_num, const char *src, uint32_t adr, int size
 int sioMcdRead(enum MemcardNum mcd_num, char *dst, uint32_t adr, int size)
 {
 	if (adr >= MCD_SIZE) {
-		printf("Error in %s(): memcard %d, adr %x is outside memcard bounds (128KB)\n",
+		printf("Error in %s(): memcard %d, adr %lx is outside memcard bounds (128KB)\n",
 				__func__, mcd_num+1, adr);
 		return -1;
 	}
 
 	if ((adr + size) > MCD_SIZE) {
-		printf("Error in %s(): memcard %d, adr %x + size %x is outside memcard bounds (128KB)\n",
+		printf("Error in %s(): memcard %d, adr %lx + size %x is outside memcard bounds (128KB)\n",
 				__func__, mcd_num+1, adr, size);
 		size = MCD_SIZE - adr;
 		printf("Adjusted size to within 128KB range: %x\n", size);
@@ -709,7 +709,7 @@ int LoadMcd(enum MemcardNum mcd_num, char* filename)
 			// If there's a size mismatch, just issue a warning
 			// TODO: add error-reporting callback for GUI frontend
 			printf("Warning: unknown memcard format (not raw image, DexDrive, or Connectix VGS)\n"
-			       "File size: %lu\n"
+			       "File size: %llu\n"
 			       "Expected size: 131072 (raw), 134976 (DexDrive), 131136 (VGS)\n",
 			       stat_buf.st_size);
 		}

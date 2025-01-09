@@ -975,7 +975,7 @@ void cdrInterrupt()
 			}
 			cdr.Result[0] |= (cdr.Result[1] >> 4) & 0x08;
 
-			strncpy((char *)&cdr.Result[4], "PCSX", 4);
+			memcpy((char *)&cdr.Result[4], "PCSX", 4);
 			cdr.Stat = Complete;
 			break;
 

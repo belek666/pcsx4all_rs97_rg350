@@ -63,7 +63,7 @@ static uint8_t emit_const_hw_store(uint32_t addr, uint32_t r2, uint32_t opcode, 
 			width = 32;
 			break;
 		default:
-			printf("ERROR: unrecognized opcode in %s: %x\n", __func__, opcode);
+			printf("ERROR: unrecognized opcode in %s: %lx\n", __func__, opcode);
 			exit(1);
 			break;
 	}
@@ -519,7 +519,7 @@ static uint8_t emit_const_hw_load(uint32_t addr, uint32_t r2, uint32_t opcode, u
 			width = 32;
 			break;
 		default:
-			printf("ERROR: unrecognized opcode in %s: %x\n", __func__, opcode);
+			printf("ERROR: unrecognized opcode in %s: %lx\n", __func__, opcode);
 			exit(1);
 			break;
 	}

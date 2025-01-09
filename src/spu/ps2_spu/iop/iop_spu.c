@@ -1,5 +1,4 @@
-
-
+/* Based on audsrv and libsd from PS2SDK */
 
 #include "types.h"
 #include "ioman.h"
@@ -177,7 +176,7 @@ static int write_sound_buffer(u8 *ptr, int size) {
 	return size;
 }
 
-static int play_audio(const char *buf, int buflen) {
+static int play_audio(u8 *buf, int buflen) {
 	int sent = 0;
 
 	DPRINTF("IOP_SPU: play audio size %d\n", buflen);

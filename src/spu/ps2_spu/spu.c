@@ -37,7 +37,7 @@ static void spu_iop_set_format(int freq, int bits, int channels);
 static int spu_iop_avail_space(void);
 static void spu_iop_play_audio(void *ptr, int size);
 
-static int sound_freq, sound_bits, sound_channels;
+static int sound_freq, sound_channels;
 
 static void handler(int irq) {
 	switch (irq) {
@@ -86,7 +86,6 @@ long SPU_close(void) {
 void SPU_writeRegister(unsigned long reg, unsigned short val, unsigned int unk) {
 	int r = reg & 0xFFF;
 	volatile u16 *reg_addr = NULL;
-	int full_addr = 0;
 
 	//printf("SPU_writeRegister 0x%08lx 0x%04x\n", reg, val);
 
@@ -194,7 +193,6 @@ unsigned short SPU_readRegister(unsigned long reg) {
 	int r = reg & 0xFFF;
 	volatile u16 *reg_addr = NULL;
 	u16 ret_val = 0;
-	int full_addr = 0;
 
 	if (r >= 0x0C00 && r < 0x0D80) { //SPU Voice 0..23 Registers
 		int ch = (r >> 4) - 0xC0;
@@ -299,7 +297,7 @@ void SPU_readDMAMem(unsigned short *ptr, int size, unsigned int unk) {
 		rpcbuf[0] = chunk;
 		size_to_read -= chunk;
 		
-		sifdma.src = iop_addr + write_ptr;
+		sifdma.src = (u8 *)iop_addr + write_ptr;
 		sifdma.dest = dmabuf;
 		sifdma.size = chunk;
 		sifdma.attr = 0;
@@ -320,7 +318,7 @@ void SPU_writeDMAMem(unsigned short *ptr, int size, unsigned int unk) {
 
 	u32 current_tsa = ((U16_REGISTER_READ(SD_A_TSA_HI(SPU_CORE)) & 0x3F) << 16) | U16_REGISTER_READ(SD_A_TSA_LO(SPU_CORE));
 
-	printf("SPU_writeDMAMem 0x%08x size %d TSA=0x%08x\n", ptr, size, current_tsa);
+	printf("SPU_writeDMAMem 0x%08x size %d TSA=0x%08x\n", (unsigned int)ptr, size, current_tsa);
 	
 	full_size = size * 2;
 	iop_addr = SifAllocIopHeap(full_size);
@@ -337,7 +335,7 @@ void SPU_writeDMAMem(unsigned short *ptr, int size, unsigned int unk) {
 		memcpy(UNCACHED_SEG(dmabuf), (u8 *)ptr + read_ptr, chunk);
 			
 		sifdma.src = dmabuf;
-		sifdma.dest = iop_addr + read_ptr;
+		sifdma.dest = (u8 *)iop_addr + read_ptr;
 		sifdma.size = chunk;
 		sifdma.attr = 0;
 

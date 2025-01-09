@@ -486,7 +486,6 @@ void gteRTPS(void) {
 void gteRTPT(void) {
 	int quotient;
 	int v;
-	int32_t vx, vy, vz;
 
 #ifdef GTE_LOG
 	GTE_LOG("GTE RTPT\n");
@@ -507,6 +506,7 @@ void gteRTPT(void) {
 		gteMAC2 = A2((((int64_t)gteTRY << 12) + madd[1]) >> 12);
 		gteMAC3 = A3((((int64_t)gteTRZ << 12) + madd[2]) >> 12);
 #else
+		int32_t vx, vy, vz;
 		vx = VX(v);
 		vy = VY(v);
 		vz = VZ(v);
@@ -536,9 +536,6 @@ void gteMVMVA(uint32_t gteop) {
 	int v = GTE_V(gteop);
 	int cv = GTE_CV(gteop);
 	int lm = GTE_LM(gteop);
-	int32_t vx = VX(v);
-	int32_t vy = VY(v);
-	int32_t vz = VZ(v);
 
 #ifdef GTE_LOG
 	GTE_LOG("GTE MVMVA\n");
@@ -559,6 +556,9 @@ void gteMVMVA(uint32_t gteop) {
 	gteMAC2 = A2((((int64_t)CV2(cv) << 12) + madd[1]) >> shift);
 	gteMAC3 = A3((((int64_t)CV3(cv) << 12) + madd[2]) >> shift);
 #else
+	int32_t vx = VX(v);
+	int32_t vy = VY(v);
+	int32_t vz = VZ(v);
 	gteMAC1 = A1((((int64_t)CV1(cv) << 12) + (MX11(mx) * vx) + (MX12(mx) * vy) + (MX13(mx) * vz)) >> shift);
 	gteMAC2 = A2((((int64_t)CV2(cv) << 12) + (MX21(mx) * vx) + (MX22(mx) * vy) + (MX23(mx) * vz)) >> shift);
 	gteMAC3 = A3((((int64_t)CV3(cv) << 12) + (MX31(mx) * vx) + (MX32(mx) * vy) + (MX33(mx) * vz)) >> shift);
@@ -677,7 +677,6 @@ void gteNCCS(void) {
 
 void gteNCCT(void) {
 	int v;
-	int32_t vx, vy, vz;
 
 #ifdef GTE_LOG
 	GTE_LOG("GTE NCCT\n");
@@ -697,6 +696,7 @@ void gteNCCT(void) {
 		gteMAC2 = madd[1] >> 12;
 		gteMAC3 = madd[2] >> 12;
 #else
+		int32_t vx, vy, vz;
 		vx = VX(v);
 		vy = VY(v);
 		vz = VZ(v);
@@ -794,7 +794,6 @@ void gteNCDS(void) {
 
 void gteNCDT(void) {
 	int v;
-	int32_t vx, vy, vz;
 
 #ifdef GTE_LOG
 	GTE_LOG("GTE NCDT\n");
@@ -814,6 +813,7 @@ void gteNCDT(void) {
 		gteMAC2 = madd[1] >> 12;
 		gteMAC3 = madd[2] >> 12;
 #else
+		int32_t vx, vy, vz;
 		vx = VX(v);
 		vy = VY(v);
 		vz = VZ(v);
@@ -1054,7 +1054,6 @@ void gteNCS(void) {
 
 void gteNCT(void) {
 	int v;
-	int32_t vx, vy, vz;
 
 #ifdef GTE_LOG
 	GTE_LOG("GTE NCT\n");
@@ -1074,6 +1073,7 @@ void gteNCT(void) {
 		gteMAC2 = madd[1] >> 12;
 		gteMAC3 = madd[2] >> 12;
 #else
+		int32_t vx, vy, vz;
 		vx = VX(v);
 		vy = VY(v);
 		vz = VZ(v);

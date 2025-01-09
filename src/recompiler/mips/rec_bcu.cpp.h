@@ -364,7 +364,7 @@ static void emitBxxZ(int andlink, uint32_t bpc, uint32_t nbpc)
 				branch_taken = (val <= 0);
 				break;
 			default:
-				printf("Error opcode=%08x\n", code);
+				printf("Error opcode=%08lx\n", code);
 				exit(1);
 		}
 
@@ -441,7 +441,7 @@ static void emitBxxZ(int andlink, uint32_t bpc, uint32_t nbpc)
 	case 0x1c000000: /* BGTZ */	BLEZ(br1, 0); break;
 	case 0x18000000: /* BLEZ */	BGTZ(br1, 0); break;
 	default:
-		printf("Error opcode=%08x\n", code);
+		printf("Error opcode=%08lx\n", code);
 		exit(1);
 	}
 
@@ -528,7 +528,7 @@ static void emitBxx(uint32_t bpc)
 				branch_taken = (val1 != val2);
 				break;
 			default:
-				printf("Error opcode=%08x\n", code);
+				printf("Error opcode=%08lx\n", code);
 				exit(1);
 		}
 
@@ -578,7 +578,7 @@ static void emitBxx(uint32_t bpc)
 	case 0x10000000: /* BEQ */	BNE(br1, br2, 0); break;
 	case 0x14000000: /* BNE */	BEQ(br1, br2, 0); break;
 	default:
-		printf("Error opcode=%08x\n", code);
+		printf("Error opcode=%08lx\n", code);
 		exit(1);
 	}
 
@@ -1251,7 +1251,7 @@ static uint8_t convertBranchToConditionalMoves()
 				break;
 
 			default:
-				printf("Error in %s(): branch_opcode=0x%08x\n", __func__, branch_opcode);
+				printf("Error in %s(): branch_opcode=0x%08lx\n", __func__, branch_opcode);
 				exit(1);
 		}
 	}

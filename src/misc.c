@@ -392,7 +392,7 @@ int CheckCdrom() {
 		for (i = 0; i < len; ++i) {
 			if (exename[i] == ';' || c >= sizeof(CdromId) - 1)
 				break;
-			if (isalnum(exename[i]))
+			if (isalnum((unsigned char)exename[i]))
 				CdromId[c++] = exename[i];
 		}
 	}
@@ -958,7 +958,7 @@ int CheckState(const char *file, uint_fast8_t *uses_hle, uint_fast8_t get_sshot,
 
 	if (version < SaveVersionEarliestSupported) {
 		printf("Error in %s(): file %s is too old, no longer supported.\n"
-		       "Version detected: %x  Minimum supported: %x\n",
+		       "Version detected: %lx  Minimum supported: %lx\n",
 			   __func__, file, version, SaveVersionEarliestSupported);
 		SaveFuncs.close(f);
 		return CHECKSTATE_ERR_VERSION;

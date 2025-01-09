@@ -197,9 +197,6 @@ static void setup_paths() {
 
 void probe_lastdir() {
 	DIR *dir;
-	if (!Config.LastDir)
-		return;
-
 	dir = opendir(Config.LastDir);
 
 	if (!dir) {
@@ -496,7 +493,7 @@ void config_save() {
 #endif
 
 #ifdef PSXREC
-	fprintf(f, "CycleMultiplier %03x\n", cycle_multiplier);
+	fprintf(f, "CycleMultiplier %03lx\n", cycle_multiplier);
 #endif
 
 #ifdef GPU_UNAI
@@ -556,8 +553,6 @@ static uint16_t pad1 = 0xFFFF;
 static uint16_t pad2 = 0xFFFF;
 
 static uint16_t pad1_buttons = 0xFFFF;
-
-static unsigned short analog1 = 0;
 
 #define joy_commit_range    8192
 enum {

@@ -208,6 +208,10 @@ obj/%.o: src/%.c
 	@echo Compiling $<...
 	$(HIDECMD)$(CC) -std=gnu99 $(CFLAGS) -c $< -o $@
 
+obj/%.o: obj/%.c
+	@echo Compiling $<...
+	$(HIDECMD)$(CC) -std=gnu99 $(CFLAGS) -c $< -o $@
+
 obj/%.o: src/%.cpp
 	@echo Compiling $<...
 	$(HIDECMD)$(CXX) -std=gnu++03 $(CXXFLAGS) -c $< -o $@
@@ -222,7 +226,7 @@ obj/%.o: src/%.S
 	
 obj/iop_spu_irx.c:
 	@echo Compiling $<...
-	make -C ./src/spu/ps2_spu/iop
+	$(HIDECMD)make -C ./src/spu/ps2_spu/iop
 	$(HIDECMD)$(BIN2C) ./src/spu/ps2_spu/iop/iop_spu.irx obj/iop_spu_irx.c iop_spu_irx
 	
 obj/%_irx.c: $(PS2SDK)/iop/irx/%.irx
@@ -237,6 +241,8 @@ maketree: $(sort $(OBJDIRS))
 clean:
 	$(RM) -r obj
 	$(RM) $(TARGET)
+	$(RM) -r ./src/spu/ps2_spu/iop/obj
+	$(RM) ./src/spu/ps2_spu/iop/iop_spu.irx
 
 run:
 	ps2client -h 192.168.1.110 execee host:$(TARGET)

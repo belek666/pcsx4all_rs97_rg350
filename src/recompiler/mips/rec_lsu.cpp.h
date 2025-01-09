@@ -1077,7 +1077,7 @@ static void general_loads_stores(const int  count,
 						OR(MIPSREG_A1, MIPSREG_A1, TEMP_1);  // <BD> $a1 |= temp_1
 						break;
 					default:
-						printf("ERROR: unrecognized store opcode in %s: %x\n", __func__, opcode);
+						printf("ERROR: unrecognized store opcode in %s: %lx\n", __func__, opcode);
 						exit(1);
 						break;
 				}
@@ -1197,7 +1197,7 @@ static void general_loads_stores(const int  count,
 						OR(rt, rt, TEMP_3);
 						break;
 					default:
-						printf("ERROR: unrecognized load opcode in %s: %x\n", __func__, opcode);
+						printf("ERROR: unrecognized load opcode in %s: %lx\n", __func__, opcode);
 						exit(1);
 						break;
 				}

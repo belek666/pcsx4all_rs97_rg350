@@ -1116,7 +1116,7 @@ static int cycle_alter(uint32_t keys)
 static char *cycle_show()
 {
 	static char buf[16] = "\0";
-	sprintf(buf, "%d.%02d", cycle_multiplier >> 8, (cycle_multiplier & 0xff) * 100 / 256);
+	sprintf(buf, "%ld.%02ld", cycle_multiplier >> 8, (cycle_multiplier & 0xff) * 100 / 256);
 	return buf;
 }
 #endif

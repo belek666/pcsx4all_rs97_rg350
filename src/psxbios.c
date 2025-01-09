@@ -1249,7 +1249,7 @@ void psxBios_malloc(void) { // 33
 
 	// exit on uninitialized heap
 	if (chunk == NULL) {
-		printf("malloc %x,%x: Uninitialized Heap!\n", v0, a0);
+		printf("malloc %lx,%lx: Uninitialized Heap!\n", v0, a0);
 		v0 = 0;
 		pc0 = ra;
 		return;
@@ -1261,7 +1261,7 @@ void psxBios_malloc(void) { // 33
 
 			// catch out of memory
 			if(chunk >= heap_end) {
-				printf("malloc %x,%x: Out of memory error!\n",
+				printf("malloc %lx,%lx: Out of memory error!\n",
 					v0, a0);
 				v0 = 0; pc0 = ra;
 				return;

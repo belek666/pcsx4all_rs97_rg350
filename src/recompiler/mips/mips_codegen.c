@@ -242,7 +242,7 @@ uint64_t opcodeGetReads(const uint32_t op)
 			return BIT(_fRs_(op));
 	}
 
-	printf("Unknown opcode in %s(): %08x\n", __func__, op);
+	printf("Unknown opcode in %s(): %08lx\n", __func__, op);
 
 	/* We don't know what the opcode did. Assume EVERY register was read.
 	 * This is a safe default for optimisation purposes, as this opcode will
@@ -372,7 +372,7 @@ uint64_t opcodeGetWrites(const uint32_t op)
 			return 0;
 	}
 
-	printf("Unknown opcode in %s(): %08x\n", __func__, op);
+	printf("Unknown opcode in %s(): %08lx\n", __func__, op);
 
 	/* We don't know what the opcode did. Assume EVERY register was written.
 	 * This is a safe default for optimisation purposes, as this opcode will

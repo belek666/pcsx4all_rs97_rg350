@@ -300,7 +300,7 @@ static void recMFC2()
 	if (!branch && (opcodeGetReads(OPCODE_AT(pc)) & (1 << _Rt_))) {
 		if (opcodeIsBranchOrJump(OPCODE_AT(pc))) {
 			// Probably never encountered: just print a warning for devs
-			printf("%s(): WARNING: Unhandled MFC2 load-delay abuse by branch at PC %08x\n", __func__, pc);
+			printf("%s(): WARNING: Unhandled MFC2 load-delay abuse by branch at PC %08lx\n", __func__, pc);
 		} else {
 			// Emit the op *after* the MFC2 *before* emitting the MFC2 itself.
 			const uint32_t code_tmp = psxRegs.code;

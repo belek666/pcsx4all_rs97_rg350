@@ -568,7 +568,7 @@ static int recInit()
 
 	recReset();
 
-	if (recRAM == NULL || recROM == NULL || recMemBase == NULL || psxRecLUT == NULL) {
+	if (recRAM == NULL || recROM == NULL) {
 		printf("Error allocating memory\n"); return -1;
 	}
 
